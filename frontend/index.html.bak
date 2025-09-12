@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AI Chatbot</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white flex flex-col items-center justify-center h-screen">
+  <div class="w-full max-w-2xl bg-gray-800 rounded-2xl shadow-lg p-6">
+    <h1 class="text-2xl font-bold mb-4 text-center">🤖 My OpenAI Chatbot</h1>
+    <div id="chatBox" class="h-96 overflow-y-auto bg-gray-700 p-4 rounded-xl mb-4"></div>
+    <div class="flex">
+      <input id="userInput" type="text" placeholder="Type your message..." 
+             class="flex-1 p-2 rounded-l-xl bg-gray-600 border-none outline-none">
+      <button onclick="sendMessage()" class="bg-blue-500 px-4 py-2 rounded-r-xl">Send</button>
+    </div>
+  </div>
+
+  <script>
+    async function sendMessage() {
+      const input = document.getElementById("userInput");
+      const chatBox = document.getElementById("chatBox");
+
+      const userMsg = input.value.trim();
+      if (!userMsg) return;
+
+      chatBox.innerHTML += `<div class='mb-2'><b>You:</b> ${userMsg}</div>`;
+      input.value = "";
+
+      try {
+        const res = await fetch("http://127.0.0.1:5000/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: userMsg })
+        });
+
+        const data = await res.json();
+        chatBox.innerHTML += `<div class='mb-2 text-green-400'><b>Bot:</b> ${data.reply || data.error}</div>`;
+        chatBox.scrollTop = chatBox.scrollHeight;
+      } catch (err) {
+        chatBox.innerHTML += `<div class='mb-2 text-red-400'><b>Error:</b> ${err.message}</div>`;
+      }
+    }
+  </script>
+</body>
+</html>

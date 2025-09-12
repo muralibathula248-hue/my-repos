@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AI Support Bot</title>
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; margin:0; background:#f6f8fb; }
+    .container { max-width:720px; margin:40px auto; background:white; border-radius:12px; box-shadow:0 6px 30px rgba(20,20,40,0.08); padding:20px; }
+    h1 { margin:0 0 12px; font-size:20px; }
+    #chat { height: 60vh; overflow:auto; border:1px solid #eee; padding:12px; border-radius:8px; background:#fbfdff; }
+    .msg { margin:8px 0; display:flex; }
+    .msg.user { justify-content:flex-end; }
+    .bubble { max-width:75%; padding:10px 14px; border-radius:12px; line-height:1.4; }
+    .bubble.user { background:#0b93f6; color:white; border-bottom-right-radius:4px; }
+    .bubble.bot  { background:#f1f5f9; color:#111827; border-bottom-left-radius:4px; }
+    .controls { display:flex; gap:8px; margin-top:12px; }
+    input[type="text"] { flex:1; padding:10px; border-radius:8px; border:1px solid #e2e8f0; }
+    button { padding:10px 14px; border-radius:8px; border:none; background:#0b93f6; color:white; cursor:pointer; }
+    .small { font-size:12px; color:#6b7280; margin-top:8px; }
+    .loader { display:inline-block; width:16px; height:16px; border-radius:50%; border:2px solid #cbd5e1; border-top-color:#0b93f6; animation:spin 0.8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>AI Support Bot 🤖</h1>
+    <div id="chat" aria-live="polite"></div>
+
+    <div class="controls">
+      <input id="message" type="text" placeholder="Ask me anything..." onkeydown="if(event.key==='Enter') sendMessage()">
+      <button id="sendBtn" onclick="sendMessage()">Send</button>
+      <button onclick="clearSession()" title="Reset conversation">Reset</button>
+    </div>
+    <div class="small">Conversation is stored locally per browser session. API requests go to <code>http://127.0.0.1:5000/chat</code>.</div>
+  </div>
+
+  <script>
+    // session id (keeps conversation linked to a single user)
+    let sessionId = localStorage.getItem('ai_session_id');
+    if (!sessionId) {
+      sessionId = (crypto && crypto.randomUUID) ? crypto.randomUUID() : 's-' + Date.now();
+      localStorage.setItem('ai_session_id', sessionId);
+    }
+
+    const chatEl = document.getElementById('chat');
+
+    function appendMessage(text, who='bot') {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'msg ' + (who === 'user' ? 'user' : 'bot');
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble ' + (who === 'user' ? 'user' : 'bot');
+      bubble.innerHTML = text.replace(/\n/g,'<br>');
+      wrapper.appendChild(bubble);
+      chatEl.appendChild(wrapper);
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('message');
+      const text = input.value && input.value.trim();
+      if (!text) return;
+      appendMessage(escapeHtml(text), 'user');
+      input.value = '';
+      document.getElementById('sendBtn').disabled = true;
+
+      // show loader bubble
+      const loaderBubble = document.createElement('div');
+      loaderBubble.className = 'msg';
+      loaderBubble.innerHTML = '<div class="bubble bot"><span class="loader"></span> Thinking...</div>';
+      chatEl.appendChild(loaderBubble);
+      chatEl.scrollTop = chatEl.scrollHeight;
+
+      try {
+        const res = await fetch('http://127.0.0.1:5000/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, session_id: sessionId })
+        });
+        const data = await res.json();
+        loaderBubble.remove();
+        if (res.ok) {
+          appendMessage(escapeHtml(data.reply), 'bot');
+        } else {
+          appendMessage('Error: ' + (data.error || JSON.stringify(data)), 'bot');
+        }
+      } catch (err) {
+        loaderBubble.remove();
+        appendMessage('Network error: ' + err.message, 'bot');
+      } finally {
+        document.getElementById('sendBtn').disabled = false;
+      }
+    }
+
+    function clearSession() {
+      fetch('http://127.0.0.1:5000/clear_session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId })
+      }).then(() => {
+        localStorage.removeItem('ai_session_id');
+        sessionId = (crypto && crypto.randomUUID) ? crypto.randomUUID() : 's-' + Date.now();
+        localStorage.setItem('ai_session_id', sessionId);
+        chatEl.innerHTML = '';
+        appendMessage('Session cleared. Start a new conversation!', 'bot');
+      }).catch(e => {
+        appendMessage('Could not clear session: ' + e.message, 'bot');
+      });
+    }
+
+    function escapeHtml(str) {
+      return str.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+    }
+
+    // initial greeting
+    appendMessage('Hello! I am your AI support bot. Ask me anything.', 'bot');
+  </script>
+</body>
+</html>
