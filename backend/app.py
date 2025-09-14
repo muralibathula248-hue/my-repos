@@ -1,39 +1,66 @@
-from flask import Flask, request, jsonify, send_from_directory, render_template
-
+from flask import Flask, request, jsonify, render_template
 import os
 from flask_cors import CORS
-from openai import OpenAI
 from dotenv import load_dotenv
 
-load_dotenv()  # 🔑 Load variables from .env
+# Load API keys from .env
+load_dotenv()
 
-app = Flask(__name__, static_folder=".", static_url_path="")
+# OpenAI
+from openai import OpenAI
+openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# Gemini
+import google.generativeai as genai
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
+# Flask setup
+app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Serve HTML UI
+@app.route("/")
+def home():
+    return render_template("index.html")
 
-
-@app.route("/html")
-def html_page():
-    return render_template("index.html")  # or send_from_directory(".", "index.html")
-
-
+# Chat route
 @app.route("/chat", methods=["POST"])
 def chat():
-    user_msg = request.json.get("message")
-    if not user_msg:
-        return jsonify({"error": "No message provided"}), 400
+    try:
+        data = request.json
+        user_msg = data.get("message")
+        provider = data.get("provider", "openai")  # default OpenAI
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are a helpful AI assistant."},
-            {"role": "user", "content": user_msg}
-        ]
-    )
+        if not user_msg:
+            return jsonify({"error": "No message provided"}), 400
 
-    bot_reply = response.choices[0].message.content
-    return jsonify({"reply": bot_reply})
+        reply = None
+
+        # 🔹 OpenAI
+        if provider == "openai":
+            response = openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a helpful AI assistant."},
+                    {"role": "user", "content": user_msg}
+                ]
+            )
+            reply = response.choices[0].message.content
+
+        # 🔹 Gemini
+        elif provider == "gemini":
+            model = genai.GenerativeModel("gemini-pro")
+            response = model.generate_content(user_msg)
+            reply = response.text
+
+        else:
+            return jsonify({"error": "Unknown provider"}), 400
+
+        return jsonify({"reply": reply, "provider": provider})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -1,5 +1,7 @@
-venv/
+echo "venv/
 .env
 *.env
 __pycache__/
-*.pyc
+*.pyc" > .gitignore
+git add .gitignore
+git commit -m "Add .gitignore to exclude env and venv files"
