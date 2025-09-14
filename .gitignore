@@ -3,3 +3,13 @@ echo ".env" >> .gitignore
 echo "node_modules/" >> .gitignore
 echo "dist/" >> .gitignore
 echo "__pycache__/" >> .gitignore
+
+
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.env.local
+*.log
